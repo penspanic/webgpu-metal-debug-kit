@@ -1,8 +1,11 @@
 #!/bin/bash
-# Start demo server and open in Chrome
-# Usage: bash demo/start.sh [port]
+# Start demo server
+# Usage: bash demo/start.sh [port] [--no-open]
 
 PORT="${1:-8080}"
+NO_OPEN=false
+for arg in "$@"; do [ "$arg" = "--no-open" ] && NO_OPEN=true; done
+
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Kill existing server on this port
@@ -24,7 +27,7 @@ for i in $(seq 1 10); do
   if curl -s -o /dev/null -w "" "http://localhost:$PORT/demo/" 2>/dev/null; then
     echo "Server ready: http://localhost:$PORT/demo/"
     echo "Press Ctrl+C to stop."
-    open "http://localhost:$PORT/demo/"
+    [ "$NO_OPEN" = false ] && open "http://localhost:$PORT/demo/"
     wait $SERVER_PID
     exit 0
   fi
