@@ -1,7 +1,7 @@
 {
   "name": "webgpu-metal-debug-kit",
   "description": "Debug Chrome WebGPU apps on macOS — browser-level via Chrome DevTools MCP, GPU driver-level via Xcode xctrace Metal System Trace",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "penspanic"
   },
