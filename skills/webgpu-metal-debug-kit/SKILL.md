@@ -5,9 +5,9 @@ license: MIT
 compatibility: "Requires macOS, Chrome 113+, Xcode (for Metal tracing). Chrome DevTools MCP for AI integration."
 metadata:
   author: penspanic
-  version: "1.1"
+  version: "2.0"
   platform: macOS
-allowed-tools: Bash(scripts/*) mcp__chrome-devtools__evaluate_script mcp__chrome-devtools__take_screenshot mcp__chrome-devtools__navigate_page mcp__chrome-devtools__list_console_messages
+allowed-tools: Bash(scripts/*) Bash(/usr/bin/xcrun*) Bash(ps*) Bash(kill*) Bash(lsof*) Bash(curl*) Bash(python3*) Bash(open*) Bash(sleep*) mcp__chrome-devtools__evaluate_script mcp__chrome-devtools__take_screenshot mcp__chrome-devtools__navigate_page mcp__chrome-devtools__list_console_messages
 ---
 
 # WebGPU Metal Debug Kit
@@ -17,109 +17,136 @@ Debug Chrome WebGPU applications on macOS at two levels:
 1. **Browser level** — Chrome DevTools MCP (`evaluate_script`, `take_screenshot`)
 2. **GPU driver level** — Xcode `xctrace` Metal System Trace
 
-## Chrome Strategy: Don't Launch Two Chromes
+## IMPORTANT: Use Only ONE Chrome
 
-**Browser-only debugging (default):**
-Just use MCP's own Chrome. Navigate to the app URL, use evaluate_script/take_screenshot. No extra Chrome needed.
+Never launch a separate Chrome with `setup-metal-debug.sh` while MCP Chrome is already running.
+MCP manages its own Chrome instance. Use that Chrome for everything.
 
-**When Metal tracing is also needed:**
-Do NOT launch `setup-metal-debug.sh` separately while MCP Chrome is running. Instead, do everything in MCP Chrome first (debug modes, stats, screenshots). When ready for Metal trace, find the existing Chrome GPU process and run `capture-metal-trace.sh` directly. The GPU process from MCP Chrome works for Metal tracing too — you just need to ensure Chrome was launched with `--disable-gpu-sandbox`.
+For Metal tracing, capture from the MCP Chrome's GPU process directly:
 
-**If MCP Chrome doesn't have `--disable-gpu-sandbox` (Metal trace will show no GPU events):**
-Configure MCP to connect to a Metal Debug Chrome instead of launching its own. See `assets/mcp-settings-metal.json` (adds `--browser-url=http://127.0.0.1:9222`). Then launch Chrome via `setup-metal-debug.sh` first, and MCP attaches to it.
+```bash
+# Find GPU PID and capture — just this, no setup-metal-debug.sh needed
+GPU_PID=$(pgrep -f "Google Chrome.*--type=gpu-process" | head -1)
+/usr/bin/xcrun xctrace record --template 'Metal System Trace' --attach "$GPU_PID" --time-limit 5s --output /tmp/webgpu-metal-trace.trace
+```
+
+`setup-metal-debug.sh` is ONLY for standalone use (no MCP) or when using `mcp-settings-metal.json`.
 
 ## Prerequisites
 
-- Chrome DevTools MCP must be configured.
-  - Default (browser debugging only): `assets/mcp-settings.json`
-  - Unified (browser + Metal): `assets/mcp-settings-metal.json`
-- The WebGPU app should include `assets/webgpu-debug-helpers.js` for the `window.__gpu` API.
-- For Metal tracing: Xcode must be installed. If `Metal System Trace` template is missing, run:
+- Chrome DevTools MCP configured (see `assets/mcp-settings.json`)
+- WebGPU app includes `assets/webgpu-debug-helpers.js` for `window.__gpu` API
+- For Metal tracing: Xcode installed. If `Metal System Trace` template is missing:
   ```bash
   xcodebuild -downloadComponent MetalToolchain
   ```
 
-## Debugging Workflow
+## Workflow
 
-### Level 1: Browser — Chrome DevTools MCP
+### Step 1: Start the app server
 
-Use `evaluate_script` to query app state and switch debug views:
+Start an HTTP server for the WebGPU app:
+
+```bash
+python3 -m http.server 8080 --directory <app_dir>
+```
+
+For the bundled demo:
+```bash
+python3 -m http.server 8080 --directory <plugin_dir>
+```
+Note: `file://` URLs won't work due to CORS. Must use HTTP server.
+
+### Step 2: Open the app in MCP Chrome
+
+```
+navigate_page → http://localhost:8080/demo/
+```
+
+Wait for the page to load, then verify:
 
 ```javascript
-window.__gpu.stats()          // { fps, avgMs, maxMs, debugMode, frameGapMs }
-window.__gpu.setDebugMode(N)  // 0=normal, 1=render path, 2=step heatmap, 3=depth, 4=normals
-window.__gpu.textures()       // tracked textures with dimensions and format
+// evaluate_script
+window.__gpu.stats()
+```
+
+If `window.__gpu` is not available, the page hasn't loaded the debug helpers.
+
+### Step 3: Browser-level debugging
+
+Use `evaluate_script` to inspect and control:
+
+```javascript
+window.__gpu.stats()          // frame timing: fps, avgMs, maxMs, frameGapMs
+window.__gpu.setDebugMode(0)  // normal rendering
+window.__gpu.setDebugMode(1)  // render path visualization (hit=blue, miss=dark)
+window.__gpu.setDebugMode(2)  // step heatmap (green=few, red=many)
+window.__gpu.setDebugMode(3)  // depth buffer (dark=near, bright=far)
+window.__gpu.setDebugMode(4)  // surface normals (RGB)
+window.__gpu.textures()       // tracked texture info
 window.__gpu.timings()        // GPU timing records
-window.__gpu.setStat(k, v)    // app can expose custom stats
 ```
 
-**Debugging loop:**
+Use `take_screenshot` sparingly — it consumes many tokens. Prefer `evaluate_script` for data.
 
-1. `navigate_page` → open the WebGPU app
-2. `evaluate_script` → `window.__gpu.stats()` to check frame timing
-3. `evaluate_script` → `window.__gpu.setDebugMode(1)` to visualize render paths
-4. `take_screenshot` → visually confirm (use sparingly — prefer evaluate_script for data)
-5. `list_console_messages` → check for shader compilation errors or WebGPU warnings
-6. Fix code → `navigate_page` reload (ignoreCache: true) → repeat
+Use `list_console_messages` to check for WGSL shader errors or WebGPU warnings.
 
-**Prefer `evaluate_script` over `take_screenshot`.** A stats() call is a few tokens; a screenshot is ~1MB of image tokens.
+### Step 4: Metal-level profiling (when needed)
 
-### Level 2: GPU Driver — Xcode xctrace
+When browser debugging shows no JS/shader issue but performance is bad (e.g., frameGapMs >> avgMs), profile at the Metal driver level.
 
-When browser-level debugging shows no JS/shader bottleneck but frames are still slow (e.g., GPU time is fast but frame gap is large), go to Metal level.
-
-**Step 1: Launch Chrome with Metal debugging flags**
+**Find the Chrome GPU process and capture:**
 
 ```bash
-bash scripts/setup-metal-debug.sh http://localhost:8080
+GPU_PID=$(pgrep -f "Google Chrome.*--type=gpu-process" | head -1)
+echo "GPU PID: $GPU_PID"
+/usr/bin/xcrun xctrace record \
+  --template 'Metal System Trace' \
+  --attach "$GPU_PID" \
+  --time-limit 5s \
+  --output /tmp/webgpu-metal-trace.trace
 ```
 
-This launches Chrome with `--disable-gpu-sandbox`, `MTL_CAPTURE_ENABLED=1`, `--remote-debugging-port=9222`, and Dawn debug labels.
+Do NOT use `bash scripts/capture-metal-trace.sh` from within Claude Code — PATH issues may cause template detection to fail. Use the `/usr/bin/xcrun xctrace` command directly as shown above.
 
-**Step 2: Capture Metal System Trace**
-
-```bash
-bash scripts/capture-metal-trace.sh 5
-```
-
-The script automatically finds the Chrome GPU process with `--disable-gpu-sandbox` flag.
-
-**If the script reports "Metal System Trace template not found"** but `xctrace list templates` shows it exists, the PATH may differ in the script's execution environment. Try running directly:
+**Export and analyze:**
 
 ```bash
-/usr/bin/xctrace record --template 'Metal System Trace' --attach <GPU_PID> --time-limit 5s --output /tmp/webgpu-metal-trace.trace
-```
+/usr/bin/xcrun xctrace export --input /tmp/webgpu-metal-trace.trace --toc
 
-**Step 3: Export trace data for analysis**
+# GPU encoder events
+/usr/bin/xcrun xctrace export --input /tmp/webgpu-metal-trace.trace \
+  --xpath '/trace-toc/run/data/table[@schema="metal-application-encoders-list"]'
 
-```bash
-xctrace export --input /tmp/webgpu-metal-trace.trace --toc
-xctrace export --input /tmp/webgpu-metal-trace.trace \
+# GPU execution points
+/usr/bin/xcrun xctrace export --input /tmp/webgpu-metal-trace.trace \
   --xpath '/trace-toc/run/data/table[@schema="metal-gpu-execution-points"]'
 ```
 
-Read the exported XML to analyze command buffer counts, encoding times, and GPU wait times.
+Parse the XML output to analyze:
+- Command buffer count per frame (high count = Dawn translation overhead)
+- Encoder types and durations
+- GPU execution gaps
 
-### What to look for at each level
+### Diagnostic Reference
 
-| Symptom | Level | What to check |
-|---------|-------|---------------|
-| Rendering artifacts | Browser | `setDebugMode(1)` render path, check which pass is wrong |
-| Shader compile error | Browser | `list_console_messages`, look for WGSL errors |
-| Data not reaching GPU | Browser | `__gpu.stats()` — uploadCount, check texture sizes |
-| Slow frames, GPU time is fine | Metal | Command buffer count, Dawn sync barriers |
-| Frame gap >> GPU+CPU time | Metal | IPC overhead, driver-level stalls |
-| Raymarching hotspots | Browser | `setDebugMode(2)` step heatmap |
+| Symptom | Check |
+|---------|-------|
+| Rendering artifacts | `setDebugMode(1)` — which render path is wrong? |
+| Shader errors | `list_console_messages` — WGSL compile errors |
+| Data not reaching GPU | `__gpu.stats()` — uploadCount, texture sizes |
+| Slow despite low GPU/CPU time | Metal trace — command buffer count, Dawn barriers |
+| Raymarching hotspots | `setDebugMode(2)` — red = expensive pixels |
 
 ## Files
 
 | Path | Description |
 |------|-------------|
-| `scripts/setup-metal-debug.sh` | Launch Chrome with Metal debug flags (--disable-gpu-sandbox, MTL_CAPTURE_ENABLED) |
-| `scripts/capture-metal-trace.sh` | One-command Metal System Trace capture |
 | `assets/webgpu-debug-helpers.js` | Drop into your app — exposes `window.__gpu` API |
-| `assets/debug-shader-snippet.wgsl` | WGSL debug visualization (render path, heatmap, depth, normals) |
-| `assets/mcp-settings.json` | Chrome DevTools MCP config (default — launches new Chrome) |
-| `assets/mcp-settings-metal.json` | Chrome DevTools MCP config (attaches to Metal Debug Chrome on port 9222) |
-| `references/debug-modes.md` | Detailed debug mode reference |
-| `demo/` | Minimal WebGPU raymarching demo with everything integrated |
+| `assets/debug-shader-snippet.wgsl` | WGSL debug visualization modes |
+| `assets/mcp-settings.json` | Chrome DevTools MCP config (default) |
+| `assets/mcp-settings-metal.json` | MCP config that attaches to existing Chrome on port 9222 |
+| `scripts/setup-metal-debug.sh` | Launch Chrome with Metal flags (standalone use only, not with MCP) |
+| `scripts/capture-metal-trace.sh` | Metal trace capture script (standalone use) |
+| `references/debug-modes.md` | Debug mode reference |
+| `demo/` | WebGPU raymarching demo |
