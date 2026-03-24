@@ -17,15 +17,16 @@ Debug Chrome WebGPU applications on macOS at two levels:
 1. **Browser level** — Chrome DevTools MCP (`evaluate_script`, `take_screenshot`)
 2. **GPU driver level** — Xcode `xctrace` Metal System Trace
 
-## Important: Chrome and MCP Integration
+## Chrome Strategy: Don't Launch Two Chromes
 
-`setup-metal-debug.sh` launches Chrome with `--remote-debugging-port=9222`.
+**Browser-only debugging (default):**
+Just use MCP's own Chrome. Navigate to the app URL, use evaluate_script/take_screenshot. No extra Chrome needed.
 
-**To use MCP with this Chrome (single Chrome, recommended for Metal debugging):**
-Configure MCP with `--browser-url=http://127.0.0.1:9222` so it attaches to the Metal Debug Chrome instead of launching a new one. See `assets/mcp-settings-metal.json`.
+**When Metal tracing is also needed:**
+Do NOT launch `setup-metal-debug.sh` separately while MCP Chrome is running. Instead, do everything in MCP Chrome first (debug modes, stats, screenshots). When ready for Metal trace, find the existing Chrome GPU process and run `capture-metal-trace.sh` directly. The GPU process from MCP Chrome works for Metal tracing too — you just need to ensure Chrome was launched with `--disable-gpu-sandbox`.
 
-**If MCP is configured without `--browser-url` (default):**
-MCP launches its own Chrome. You'll have two Chrome windows — one for MCP (browser debugging) and one for Metal tracing. In this case, launch `setup-metal-debug.sh` separately and use `capture-metal-trace.sh` on that Chrome's GPU process.
+**If MCP Chrome doesn't have `--disable-gpu-sandbox` (Metal trace will show no GPU events):**
+Configure MCP to connect to a Metal Debug Chrome instead of launching its own. See `assets/mcp-settings-metal.json` (adds `--browser-url=http://127.0.0.1:9222`). Then launch Chrome via `setup-metal-debug.sh` first, and MCP attaches to it.
 
 ## Prerequisites
 

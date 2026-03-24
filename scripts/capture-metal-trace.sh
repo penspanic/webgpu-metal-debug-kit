@@ -11,8 +11,10 @@ set -euo pipefail
 DURATION="${1:-10}"
 OUTPUT="${2:-/tmp/webgpu-metal-trace.trace}"
 
-# Resolve xctrace path (Claude Code's bash may have different PATH)
-XCTRACE="${XCTRACE:-$(command -v xctrace 2>/dev/null || echo /usr/bin/xctrace)}"
+# Use xcrun xctrace to ensure Metal Toolchain templates are found
+xctrace_cmd() {
+  /usr/bin/xcrun xctrace "$@"
+}
 
 echo "Finding Chrome GPU process..."
 
@@ -38,7 +40,7 @@ echo "GPU process PID: $GPU_PID"
 rm -rf "$OUTPUT"
 
 # Check Metal System Trace template
-if ! "$XCTRACE" list templates 2>/dev/null | grep -q "Metal System Trace"; then
+if ! xctrace_cmd list templates 2>/dev/null | grep -q "Metal System Trace"; then
   echo ""
   echo "Error: 'Metal System Trace' template not found."
   echo "Install Metal Toolchain:"
@@ -50,7 +52,7 @@ echo "Capturing Metal System Trace for ${DURATION}s..."
 echo "Output: $OUTPUT"
 echo ""
 
-"$XCTRACE" record \
+xctrace_cmd record \
   --template 'Metal System Trace' \
   --attach "$GPU_PID" \
   --time-limit "${DURATION}s" \
@@ -63,5 +65,5 @@ echo "Open in Instruments:"
 echo "  open \"$OUTPUT\""
 echo ""
 echo "Export for AI analysis:"
-echo "  $XCTRACE export --input \"$OUTPUT\" --toc"
-echo "  $XCTRACE export --input \"$OUTPUT\" --xpath '/trace-toc/run/data/table[@schema=\"metal-gpu-execution-points\"]'"
+echo "  xcrun xctrace export --input \"$OUTPUT\" --toc"
+echo "  xcrun xctrace export --input \"$OUTPUT\" --xpath '/trace-toc/run/data/table[@schema=\"metal-gpu-execution-points\"]'"
