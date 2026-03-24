@@ -1,0 +1,17 @@
+{
+  "name": "webgpu-metal-debug-kit",
+  "owner": {
+    "name": "penspanic"
+  },
+  "metadata": {
+    "description": "WebGPU Metal debugging toolkit for AI-assisted development on macOS"
+  },
+  "plugins": [
+    {
+      "name": "webgpu-metal-debug-kit",
+      "source": ".",
+      "description": "Debug Chrome WebGPU apps on macOS — Chrome DevTools MCP + Xcode xctrace Metal System Trace",
+      "version": "1.0.0"
+    }
+  ]
+}
