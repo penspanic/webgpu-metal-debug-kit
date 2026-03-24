@@ -26,6 +26,10 @@ const state = {
   customStats: {},
 };
 
+// Register window.__gpu immediately on import so AI can detect the module is loaded.
+// Full functionality is available after initDebugHelpers() is called.
+window.__gpu = { ready: false, stats: () => ({ ready: false, status: 'initializing — call initDebugHelpers(device) first' }) };
+
 /**
  * 초기화. WebGPU device 생성 후 호출한다.
  */
