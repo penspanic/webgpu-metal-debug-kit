@@ -30,7 +30,7 @@ Metal Toolchain: !`/usr/bin/xcrun xctrace list templates 2>/dev/null | grep -q "
 
 ## Workflow
 
-The user provides a URL to their running WebGPU app. If they say "demo", run `bash ${CLAUDE_SKILL_DIR}/../../demo/start.sh --no-open` and use `http://localhost:8080/demo/`. The `--no-open` flag prevents opening a system browser (MCP Chrome will be used instead).
+The user provides a URL to their running WebGPU app. If they say "demo", run `bash ${CLAUDE_SKILL_DIR}/../../demo/start.sh --no-open` in the background. The script finds an available port automatically and prints `Server ready: http://localhost:<port>/demo/`. Parse the URL from the output and use it. The `--no-open` flag prevents opening a system browser (MCP Chrome will be used instead).
 
 ### Step 1: Open the app
 
