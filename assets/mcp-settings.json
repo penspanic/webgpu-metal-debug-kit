@@ -1,5 +1,6 @@
 {
-  "_comment": "이 내용을 프로젝트의 .claude/settings.local.json에 병합하세요.",
+  "_comment_1": "Default: MCP launches its own Chrome (browser-level debugging only)",
+  "_comment_2": "For Metal debugging: use mcp-settings-metal.json instead, which connects to your Metal Debug Chrome",
   "mcpServers": {
     "chrome-devtools": {
       "command": "npx",

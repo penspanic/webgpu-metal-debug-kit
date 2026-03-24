@@ -1,0 +1,9 @@
+{
+  "_comment": "MCP가 setup-metal-debug.sh로 실행한 Chrome(port 9222)에 연결. 새 Chrome을 띄우지 않음.",
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/chrome-devtools-mcp@latest", "--browser-url=http://127.0.0.1:9222"]
+    }
+  }
+}
