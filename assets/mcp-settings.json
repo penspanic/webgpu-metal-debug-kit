@@ -1,0 +1,9 @@
+{
+  "_comment": "이 내용을 프로젝트의 .claude/settings.local.json에 병합하세요.",
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/chrome-devtools-mcp@latest"]
+    }
+  }
+}

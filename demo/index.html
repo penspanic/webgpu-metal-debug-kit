@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebGPU Debug Kit Demo</title>
+  <style>
+    body { margin: 0; background: #1a1a2e; color: #eee; font-family: monospace; }
+    canvas { display: block; }
+    #info {
+      position: fixed; top: 10px; left: 10px;
+      background: rgba(0,0,0,0.7); padding: 10px; border-radius: 4px;
+      font-size: 13px; line-height: 1.6;
+    }
+    #info code { color: #4fc3f7; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="info">
+    <div>WebGPU Debug Kit Demo</div>
+    <div>Open Chrome DevTools console or use MCP:</div>
+    <div><code>window.__gpu.stats()</code> — frame stats</div>
+    <div><code>window.__gpu.setDebugMode(1)</code> — render path</div>
+    <div><code>window.__gpu.setDebugMode(2)</code> — step heatmap</div>
+    <div><code>window.__gpu.setDebugMode(0)</code> — normal</div>
+    <div><code>window.__gpu.textures()</code> — texture info</div>
+    <div id="fps"></div>
+  </div>
+  <script type="module" src="demo.js"></script>
+</body>
+</html>
