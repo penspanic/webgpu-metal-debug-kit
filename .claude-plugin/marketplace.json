@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "webgpu-metal-debug-kit",
-      "source": ".",
+      "source": "./",
       "description": "Debug Chrome WebGPU apps on macOS — Chrome DevTools MCP + Xcode xctrace Metal System Trace",
       "version": "1.0.0"
     }
